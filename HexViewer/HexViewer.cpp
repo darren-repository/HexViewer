@@ -187,6 +187,54 @@ public:
         return m_pTextBuffer;
     }
 
+    ///////////////////////////////////////////////////////
+    // ConvertToHexFromByteBuffer
+    // Return: true if successful, otherwise false
+    ///////////////////////////////////////////////////////
+    static bool ConvertToHexFromByteBuffer(__in void* pByteBuffer, __in size_t sBufferSize, __inout void* pHexBuffer, __in size_t sHexBufferSize)
+    {
+        unsigned char* pByte;
+        unsigned char pNibbleHigh;
+        unsigned char pNibbleLow;
+        //sCombinedByte *pFileByte = nullptr;
+        //
+        ////Create a conversion of all the bytes to a 2 character hex value
+        //for (DWORD dwIndex = 0; dwIndex < dwFileSize; dwIndex++)
+        //{
+        //    pFileByte = (sCombinedByte*)(&((BYTE*)pFileBuffer)[dwIndex]);
+        //
+        //    ((char*)pHexBuffer)[dwIndex * 3] = (pFileByte->sByte.ucHigh <= 9 ? (48 + pFileByte->sByte.ucHigh) : (56 + pFileByte->sByte.ucHigh));
+        //    ((char*)pHexBuffer)[dwIndex * 3 + 1] = (pFileByte->sByte.ucLow <= 9 ? (48 + pFileByte->sByte.ucLow) : (56 + pFileByte->sByte.ucLow));
+        //    ((char*)pHexBuffer)[dwIndex * 3 + 2] = ' ';
+        //}
+
+        if (pByteBuffer == nullptr || pHexBuffer == nullptr)
+        {
+            return false;
+        }
+
+        if (sHexBufferSize < (3 * sBufferSize))
+        {
+            return false;
+        }
+
+        for (int iByteIndex = 0; iByteIndex < sBufferSize; iByteIndex++)
+        {
+            pByte = &((BYTE*)pByteBuffer)[iByteIndex];
+
+            pNibbleHigh = (*pByte & 0xF0) >> 4;
+            pNibbleLow = (*pByte & 0x0F);
+
+        
+            ((char*)pHexBuffer)[iByteIndex * 3] = (pNibbleHigh <= 9 ? (48 + pNibbleHigh) : (55 + pNibbleHigh));
+            ((char*)pHexBuffer)[iByteIndex * 3 + 1] = (pNibbleLow <= 9 ? (48 + pNibbleLow) : (55 + pNibbleLow));
+            ((char*)pHexBuffer)[iByteIndex * 3 + 2] = ' ';
+        }
+
+
+        return true;
+    }
+
 };//end of class CEditCtlMemory
 
 CEditCtlText g_mmHexCtl;
@@ -301,7 +349,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     LPNMHDR pControlMsgHdr;
-
     wchar_t wszCommandInformation[256];
 
     switch (message)
@@ -337,6 +384,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             EndPaint(hWnd, &ps);
         }
         break;
+    case WM_NOTIFY:
+        pControlMsgHdr = (LPNMHDR)lParam;
+        wsprintf(wszCommandInformation, L"The WM_NOTIFY Message Was Issued With Code: %x\n", pControlMsgHdr->code);
+        OutputDebugStringW(wszCommandInformation);
+        return static_cast<INT_PTR>(TRUE);
+    case WM_PARENTNOTIFY:
+        wsprintf(wszCommandInformation, L"The WM_PARENTNOTIFY Message Was Issued With Code: %x\n", (UINT)LOWORD(wParam) );
+        OutputDebugStringW(wszCommandInformation);
+        return static_cast<INT_PTR>(TRUE);
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
@@ -567,12 +623,6 @@ void AlignEditCtlSelToCaret(HWND hDialogWnd)
     wchar_t wszCommandInformation[256];
     wsprintf(wszCommandInformation, L"Source Edit Control Index: %5i Destination Edit Control Index: %i\n", iSrcCharIdx, iDstCharIdx);
     OutputDebugStringW(wszCommandInformation);
-
-
-}
-
-void AlignAsciiToHexCaret(HWND hDialogWnd)
-{
 }
 
 //////////////////////////////////////////////////////////////
@@ -585,9 +635,9 @@ INT_PTR CALLBACK HexViewerDlgProc(HWND hDialogWnd, UINT uiMessage, WPARAM wParam
     UNREFERENCED_PARAMETER(wParam);
     //void* pFileBuffer = nullptr;
     //HWND hEditAsciiCtrl;
+    //HWND hAsciiCtlWnd;
     POINT ptMouseButton;
     HWND hMouseActivateWnd;
-    HWND hAsciiCtlWnd;
     INT  iMouseActivateCtlID;
     LPNMHDR pControlMsgHdr;
     UINT uiMouseMessage;
@@ -633,19 +683,27 @@ INT_PTR CALLBACK HexViewerDlgProc(HWND hDialogWnd, UINT uiMessage, WPARAM wParam
         return static_cast<INT_PTR>(TRUE);
     case WM_NOTIFY:
         pControlMsgHdr = (LPNMHDR)lParam;
-        wsprintf(wszCommandInformation, L"The WM_NOTIFY Message Was Issued With Code: %x", pControlMsgHdr->code);
+        wsprintf(wszCommandInformation, L"The WM_NOTIFY Message Was Issued With Code: %x\n", pControlMsgHdr->code);
         OutputDebugStringW(wszCommandInformation);
         return static_cast<INT_PTR>(TRUE);
     case WM_PARENTNOTIFY:
-        wsprintf(wszCommandInformation, L"The WM_PARENTNOTIFY Message Was Issued With Code: %x", (UINT)LOWORD(wParam) );
+        wsprintf(wszCommandInformation, L"The WM_PARENTNOTIFY Message Was Issued With Code: %x\n", (UINT)LOWORD(wParam) );
         OutputDebugStringW(wszCommandInformation);
         return static_cast<INT_PTR>(TRUE);
     case WM_MOUSEACTIVATE:
         hMouseActivateWnd = (HWND)wParam;
         
         GetCursorPos(&ptMouseButton);
+        wsprintf(wszCommandInformation, L"The WM_MOUSEACTIVATE Message Was Issued Physical Cursor Point: %i,%i\n", ptMouseButton.x, ptMouseButton.y );
+        OutputDebugStringW(wszCommandInformation);
 
+        ScreenToClient(hMouseActivateWnd, &ptMouseButton);
+        wsprintf(wszCommandInformation, L"The WM_MOUSEACTIVATE Message Was Issued Client Point: %i,%i\n", ptMouseButton.x, ptMouseButton.y );
+        OutputDebugStringW(wszCommandInformation);
+
+        //hMouseActivateWnd = WindowFromPhysicalPoint(ptMouseButton);
         hMouseActivateWnd = ChildWindowFromPointEx(hDialogWnd, ptMouseButton, CWP_ALL);
+        //hMouseActivateWnd = RealChildWindowFromPoint(hMouseActivateWnd, ptMouseButton);
 
         iMouseActivateCtlID = GetDlgCtrlID(hMouseActivateWnd);
 
@@ -748,24 +806,26 @@ BOOL OpenHexFile(HWND hOwnerWindow)
         return FALSE;
     }
 
-    sCombinedByte *pFileByte = nullptr;
+    g_mmHexCtl.ConvertToHexFromByteBuffer(pFileBuffer, (size_t)dwFileSize, pHexBuffer, (size_t)(dwFileSize * 3));
 
-    //Create a conversion of all the bytes to a 2 character hex value
-    for (DWORD dwIndex = 0; dwIndex < dwFileSize; dwIndex++)
-    {
-        pFileByte = (sCombinedByte*)(&((BYTE*)pFileBuffer)[dwIndex]);
-
-        ((char*)pHexBuffer)[dwIndex * 3] = (pFileByte->sByte.ucHigh <= 9 ? (48 + pFileByte->sByte.ucHigh) : (56 + pFileByte->sByte.ucHigh));
-        ((char*)pHexBuffer)[dwIndex * 3 + 1] = (pFileByte->sByte.ucLow <= 9 ? (48 + pFileByte->sByte.ucLow) : (56 + pFileByte->sByte.ucLow));
-        ((char*)pHexBuffer)[dwIndex * 3 + 2] = ' ';
-    }
+    //sCombinedByte *pFileByte = nullptr;
+    //
+    ////Create a conversion of all the bytes to a 2 character hex value
+    //for (DWORD dwIndex = 0; dwIndex < dwFileSize; dwIndex++)
+    //{
+    //    pFileByte = (sCombinedByte*)(&((BYTE*)pFileBuffer)[dwIndex]);
+    //
+    //    ((char*)pHexBuffer)[dwIndex * 3] = (pFileByte->sByte.ucHigh <= 9 ? (48 + pFileByte->sByte.ucHigh) : (56 + pFileByte->sByte.ucHigh));
+    //    ((char*)pHexBuffer)[dwIndex * 3 + 1] = (pFileByte->sByte.ucLow <= 9 ? (48 + pFileByte->sByte.ucLow) : (56 + pFileByte->sByte.ucLow));
+    //    ((char*)pHexBuffer)[dwIndex * 3 + 2] = ' ';
+    //}
 
     //Change all unsupported characters to spaces
-    //g_mmAsciiCtl.ReplaceRangeOfByteValues(0, 9, (unsigned char)' ');
-    //g_mmAsciiCtl.ReplaceRangeOfByteValues(11, 12, (unsigned char)' ');
-    //g_mmAsciiCtl.ReplaceRangeOfByteValues(14, 31, (unsigned char)' ');
-    //g_mmAsciiCtl.ReplaceRangeOfByteValues(127, 127, (unsigned char)' ');
-    //g_mmAsciiCtl.ReplaceRangeOfByteValues(255, 255, (unsigned char)' ');
+    g_mmAsciiCtl.ReplaceRangeOfByteValues(0, 9, (unsigned char)' ');
+    g_mmAsciiCtl.ReplaceRangeOfByteValues(11, 12, (unsigned char)' ');
+    g_mmAsciiCtl.ReplaceRangeOfByteValues(14, 31, (unsigned char)' ');
+    g_mmAsciiCtl.ReplaceRangeOfByteValues(127, 127, (unsigned char)' ');
+    g_mmAsciiCtl.ReplaceRangeOfByteValues(255, 255, (unsigned char)' ');
 
     //unsigned char* pByte = nullptr;
     //
