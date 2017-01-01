@@ -547,7 +547,7 @@ void EditCtrlLostFocus(HWND hEditCtl)
     DestroyCaret();
 }
 
-void AlignEditCtlSelToCaret(HWND hDialogWnd, POINT ptMouseClick)
+void AlignEditCtlSelToCaret(HWND hDialogWnd)
 {
     wchar_t wszCommandInformation[256];
 
@@ -559,7 +559,6 @@ void AlignEditCtlSelToCaret(HWND hDialogWnd, POINT ptMouseClick)
     HWND hEditSrcCtl = 0;
     HWND hEditDstCtl = 0;
     
-    SCROLLINFO siEditDstCtl = {};
     int iDstVisibleLine = 0;
     int iDstDesiredLine = 0;
 
@@ -569,8 +568,9 @@ void AlignEditCtlSelToCaret(HWND hDialogWnd, POINT ptMouseClick)
     int iSrcSelLength = 0;
     int iDstSelLength = 0;
 
-    CHARRANGE crSrcSelect = {};
-    CHARRANGE crDstSelect = {};
+    //Rich Edit Control
+    //CHARRANGE crSrcSelect = {};
+    //CHARRANGE crDstSelect = {};
 
     int iSrcCharIdx = 0;
     int iDstCharIdx = 0;
@@ -592,7 +592,6 @@ void AlignEditCtlSelToCaret(HWND hDialogWnd, POINT ptMouseClick)
         return;
     }
 
-    //GetCaretPos(&ptCursorPos);
     GetCursorPos(&ptCursorPos);
     hFocusCtl = GetFocus();
     
@@ -627,7 +626,7 @@ void AlignEditCtlSelToCaret(HWND hDialogWnd, POINT ptMouseClick)
     lpReturn = SendMessageA(hEditSrcCtl, EM_CHARFROMPOS, 0, MAKELPARAM(ptCursorPos.x,ptCursorPos.y));
     
     //Rich Edit Message
-    //lpReturn = SendMessageA(hEditSrcCtl, EM_CHARFROMPOS, 0, (LPARAM)&ptMouseClick);
+    //lpReturn = SendMessageA(hEditSrcCtl, EM_CHARFROMPOS, 0, (LPARAM)&ptCursorPos);
 
     //Edit Control Return
     iSrcCharIdx = LOWORD(lpReturn);
@@ -772,7 +771,7 @@ INT_PTR CALLBACK HexViewerDlgProc(HWND hDialogWnd, UINT uiMessage, WPARAM wParam
 
         if ( uiMouseMessage == WM_LBUTTONDOWN && ( iMouseActivateCtlID == IDC_ASCII_FILE || iMouseActivateCtlID == IDC_HEX_FILE) )
         {
-            AlignEditCtlSelToCaret(hDialogWnd, ptMouseButton);
+            AlignEditCtlSelToCaret(hDialogWnd);
         }
 
         return static_cast<INT_PTR>(MA_ACTIVATE);
