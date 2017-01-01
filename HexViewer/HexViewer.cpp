@@ -6,7 +6,7 @@
 
 #include <windowsx.h>
 #include <commdlg.h>
-//#include <richedit.h>
+#include <richedit.h>
 
 #include <string>
 using namespace std;
@@ -250,7 +250,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
 
     // TODO: Place code here.
-    //HMODULE hLoadedModule = LoadLibrary(TEXT("msftedit.dll"));
+    HMODULE hLoadedModule = LoadLibrary(TEXT("msftedit.dll"));
 
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -547,8 +547,10 @@ void EditCtrlLostFocus(HWND hEditCtl)
     DestroyCaret();
 }
 
-void AlignEditCtlSelToCaret(HWND hDialogWnd)
+void AlignEditCtlSelToCaret(HWND hDialogWnd, POINT ptMouseClick)
 {
+    wchar_t wszCommandInformation[256];
+
     HWND hFocusCtl = 0;
 
     HWND hEditAsciiCtl = 0;
@@ -557,18 +559,25 @@ void AlignEditCtlSelToCaret(HWND hDialogWnd)
     HWND hEditSrcCtl = 0;
     HWND hEditDstCtl = 0;
     
+    SCROLLINFO siEditDstCtl = {};
+    int iDstVisibleLine = 0;
+    int iDstDesiredLine = 0;
+
     int iSrcRatio = 0;
     int iDstRatio = 0;
 
     int iSrcSelLength = 0;
     int iDstSelLength = 0;
 
+    CHARRANGE crSrcSelect = {};
+    CHARRANGE crDstSelect = {};
+
     int iSrcCharIdx = 0;
     int iDstCharIdx = 0;
 
     LRESULT lpReturn;
 
-    POINT ptCaretPos = {};
+    POINT ptCursorPos = {};
 
     if (hDialogWnd == 0)
     {
@@ -583,7 +592,8 @@ void AlignEditCtlSelToCaret(HWND hDialogWnd)
         return;
     }
 
-    GetCaretPos(&ptCaretPos);
+    //GetCaretPos(&ptCursorPos);
+    GetCursorPos(&ptCursorPos);
     hFocusCtl = GetFocus();
     
     if (hFocusCtl == hEditAsciiCtl)
@@ -611,18 +621,50 @@ void AlignEditCtlSelToCaret(HWND hDialogWnd)
         return;
     }
 
-    lpReturn = SendMessageA(hEditSrcCtl, EM_CHARFROMPOS, 0, MAKELPARAM(ptCaretPos.x, ptCaretPos.y));
+    ScreenToClient(hFocusCtl, &ptCursorPos);
 
+    //Edit Control Message
+    lpReturn = SendMessageA(hEditSrcCtl, EM_CHARFROMPOS, 0, MAKELPARAM(ptCursorPos.x,ptCursorPos.y));
+    
+    //Rich Edit Message
+    //lpReturn = SendMessageA(hEditSrcCtl, EM_CHARFROMPOS, 0, (LPARAM)&ptMouseClick);
+
+    //Edit Control Return
     iSrcCharIdx = LOWORD(lpReturn);
+
+    //Rich Edit Control Return
+    //iSrcCharIdx = static_cast<int>(lpReturn);
+
 
     iDstCharIdx = ((iSrcCharIdx * iDstRatio) / iSrcRatio);
 
-    Edit_SetSel(hEditSrcCtl, iSrcCharIdx, iSrcCharIdx + iSrcSelLength);
-    Edit_SetSel(hEditDstCtl, iDstCharIdx, iDstCharIdx + iDstSelLength);
-
-    wchar_t wszCommandInformation[256];
     wsprintf(wszCommandInformation, L"Source Edit Control Index: %5i Destination Edit Control Index: %i\n", iSrcCharIdx, iDstCharIdx);
     OutputDebugStringW(wszCommandInformation);
+    
+    //Edit Control Selection
+    SendMessageA(hEditSrcCtl, EM_SETSEL, (WPARAM)iSrcCharIdx, (LPARAM)(iSrcCharIdx + iSrcSelLength));
+    SendMessageA(hEditDstCtl, EM_SETSEL, (WPARAM)iDstCharIdx, (LPARAM)(iDstCharIdx + iDstSelLength));
+
+    //Rich Edit Control Selection
+    //crSrcSelect.cpMin = iSrcCharIdx - 1;
+    //crSrcSelect.cpMax = iSrcCharIdx - 1 + iSrcSelLength;
+    //crDstSelect.cpMin = iDstCharIdx - 1;
+    //crDstSelect.cpMax = iDstCharIdx - 1 + iDstSelLength;
+    //
+    //SendMessageA(hEditSrcCtl, EM_EXSETSEL, 0, reinterpret_cast<LPARAM>(&crSrcSelect));
+    //SendMessageA(hEditDstCtl, EM_EXSETSEL, 0, reinterpret_cast<LPARAM>(&crDstSelect));
+
+    lpReturn = SendMessageA(hEditDstCtl, EM_GETFIRSTVISIBLELINE, 0, 0);
+    iDstVisibleLine = (int)lpReturn;
+    lpReturn = SendMessageA(hEditDstCtl, EM_LINEFROMCHAR, (WPARAM)-1, 0);
+    iDstDesiredLine = (int)lpReturn;
+
+    wsprintf(wszCommandInformation, L"Destination Edit Control Visible Line: %5i Desired Line: %i\n", iDstVisibleLine, iDstDesiredLine);
+    OutputDebugStringW(wszCommandInformation);
+
+    SendMessageA(hEditDstCtl, WM_VSCROLL, MAKEWPARAM(SB_TOP, 0), 0);
+    SendMessageA(hEditDstCtl, EM_LINESCROLL, 0, (LPARAM)iDstDesiredLine);
+
 }
 
 //////////////////////////////////////////////////////////////
@@ -657,7 +699,7 @@ INT_PTR CALLBACK HexViewerDlgProc(HWND hDialogWnd, UINT uiMessage, WPARAM wParam
                 EditCtrlLostFocus((HWND)lParam);
                 break;
             default:
-                wsprintf(wszCommandInformation, L"The Following Command Was Issued: %x", (UINT)HIWORD(wParam));
+                wsprintf(wszCommandInformation, L"The Following Command Was Issued: %x\n", (UINT)HIWORD(wParam));
                 OutputDebugStringW(wszCommandInformation);
                 break;
             }
@@ -694,12 +736,12 @@ INT_PTR CALLBACK HexViewerDlgProc(HWND hDialogWnd, UINT uiMessage, WPARAM wParam
         hMouseActivateWnd = (HWND)wParam;
         
         GetCursorPos(&ptMouseButton);
-        wsprintf(wszCommandInformation, L"The WM_MOUSEACTIVATE Message Was Issued Physical Cursor Point: %i,%i\n", ptMouseButton.x, ptMouseButton.y );
-        OutputDebugStringW(wszCommandInformation);
+        //wsprintf(wszCommandInformation, L"The WM_MOUSEACTIVATE Message Was Issued Physical Cursor Point: %i,%i\n", ptMouseButton.x, ptMouseButton.y );
+        //OutputDebugStringW(wszCommandInformation);
 
         ScreenToClient(hMouseActivateWnd, &ptMouseButton);
-        wsprintf(wszCommandInformation, L"The WM_MOUSEACTIVATE Message Was Issued Client Point: %i,%i\n", ptMouseButton.x, ptMouseButton.y );
-        OutputDebugStringW(wszCommandInformation);
+        //wsprintf(wszCommandInformation, L"The WM_MOUSEACTIVATE Message Was Issued Client Point: %i,%i\n", ptMouseButton.x, ptMouseButton.y );
+        //OutputDebugStringW(wszCommandInformation);
 
         //hMouseActivateWnd = WindowFromPhysicalPoint(ptMouseButton);
         hMouseActivateWnd = ChildWindowFromPointEx(hDialogWnd, ptMouseButton, CWP_ALL);
@@ -730,7 +772,7 @@ INT_PTR CALLBACK HexViewerDlgProc(HWND hDialogWnd, UINT uiMessage, WPARAM wParam
 
         if ( uiMouseMessage == WM_LBUTTONDOWN && ( iMouseActivateCtlID == IDC_ASCII_FILE || iMouseActivateCtlID == IDC_HEX_FILE) )
         {
-            AlignEditCtlSelToCaret(hDialogWnd);
+            AlignEditCtlSelToCaret(hDialogWnd, ptMouseButton);
         }
 
         return static_cast<INT_PTR>(MA_ACTIVATE);
@@ -784,7 +826,9 @@ BOOL OpenHexFile(HWND hOwnerWindow)
 
     //allocate for the file size
     g_mmAsciiCtl.AllocateMemoryBuffer(dwFileSize + 2);
+    g_mmAsciiCtl.SetMemoryBufferToValue(0);
     g_mmHexCtl.AllocateMemoryBuffer((dwFileSize * 3) + 2);
+    g_mmHexCtl.SetMemoryBufferToValue(0);
 
     //pFileBuffer = malloc(dwFileSize + 2);
     //pHexBuffer = malloc((dwFileSize * 3) + 1);
